@@ -1,0 +1,89 @@
+import os
+from fx import *
+from PySide2 import QtWidgets
+from fx import Action, selection, status, io_modules, Shape
+from tools.objectIterator import getObjects
+import datetime
+import fx
+
+def GetProjectPath():
+    p = fx.activeProject()
+    return p.bundlePath if p else None
+
+def GetPreRenderFolder(project_path):
+    if project_path:
+        project_folder = os.path.dirname(project_path)
+        return os.path.abspath(os.path.join(project_folder, "..", "pre render"))
+    else:
+        return None
+
+def get_top_parent_layer_name(layer):
+    while layer.parent and layer.parent.type == "GroupLayer":
+        layer = layer.parent
+    return layer.label if layer else "UNKNOWN"
+
+class ExportNukeShapes(Action):
+    def __init__(self, label="KarthickOptions|Export Nuke Shapes Automation"):
+        super(ExportNukeShapes, self).__init__(label)
+        self.counter = 0
+
+    def available(self):
+        assert len(selection()) > 0, "Select one or more nodes"
+
+    def execute(self):
+        project_path = GetProjectPath()
+        pre_render_folder = GetPreRenderFolder(project_path)
+
+        if not pre_render_folder:
+            status("Unable to determine pre render folder. Please save the project first.")
+            return
+
+        nuke_shapes_folder = os.path.join(pre_render_folder, "Nuke shapes")
+        if not os.path.exists(nuke_shapes_folder):
+            os.makedirs(nuke_shapes_folder)  # Create the 'Nuke shapes' folder if it doesn't exist
+
+        sel = selection()
+        if len(sel) == 0:
+            status("Select some shapes before trying to export!")
+        else:
+            # Assuming "Nuke 6.2+ Shapes" is the module for exporting Nuke shapes
+            nuke_module = io_modules.get("Nuke 6.2+ Shapes")
+
+            shapes = getObjects(sel, types=[Shape])
+            if len(shapes) > 0:
+                self.counter += 1
+                try:
+                    top_parent_layer_name = get_top_parent_layer_name(shapes[0].parent)
+                except AttributeError:
+                    top_parent_layer_name = "UNKNOWN"
+
+                # Modify export name to use the top-level parent layer's name
+                name = f"{top_parent_layer_name}_exported"
+                ext = ".nk"
+                shapePath = os.path.join(nuke_shapes_folder, name + ext)
+                select(shapes)
+                nuke_module.export(shapePath)
+                status(f"Nuke Shapes exported to '{top_parent_layer_name}' exported to {shapePath}")
+
+    def get_widgets(self):
+        widgets = QtWidgets.QApplication.allWidgets()
+        plist = []
+        for w in widgets:
+            try:
+                # Look for the correct place (viewer)
+                if w.parent() and w.parent().layout() and w.parent().layout().count() > 10 and w.parent() not in plist:
+                    plist.append(w.parent())
+                    for n in range(0, w.parent().layout().count()):
+                        try:
+                            x = w.parent().layout().itemAt(n).widget().text()
+                            if x == "Gamma":
+                                btn = QtWidgets.QPushButton("NE")  # Change button text if needed
+                                w.parent().layout().addWidget(btn)
+                                btn.clicked.connect(self.execute)  # Connect to execute method
+                        except AttributeError:
+                            pass  # Ignore if the widget doesn't have a 'text' attribute
+            except AttributeError:
+                pass  # Ignore if the widget doesn't have a 'layout' attribute
+
+# Assuming addAction is defined elsewhere
+addAction(ExportNukeShapes())
