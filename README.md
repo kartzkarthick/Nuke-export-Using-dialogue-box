@@ -1,0 +1,1 @@
+The challenge I’m currently facing involves automating the export of Nuke shapes with a push button. Ideally, the exported shape should bear the name of the selected layer, but, regrettably, the script is currently exporting it with the name of the child layer instead. To further understand the issue and explore potential solutions, you can refer to the script linked below.
